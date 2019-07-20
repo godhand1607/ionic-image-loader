@@ -1,6 +1,7 @@
 import { HttpClient }             from '@angular/common/http';
 import { Injectable }             from '@angular/core';
 import { File, FileEntry }        from '@ionic-native/file';
+import { HTTP }                   from '@ionic-native/http';
 import { Platform }               from 'ionic-angular';
 import { fromEvent }              from 'rxjs/observable/fromEvent';
 import { first }                   from 'rxjs/operators';
@@ -18,6 +19,7 @@ interface QueueItem {
   reject: Function;
 }
 
+declare const cordova: any;
 declare const Ionic: any;
 
 @Injectable()
@@ -57,6 +59,7 @@ export class ImageLoader {
     private config: ImageLoaderConfig,
     private file: File,
     private http: HttpClient,
+    nativeHttp: HTTP,
     private platform: Platform,
   ) {
     if (!platform.is('cordova')) {
@@ -328,34 +331,65 @@ export class ImageLoader {
         const localDir = this.getFileCacheDirectory() + this.config.cacheDirectoryName + '/';
         const fileName = this.createFileName(currentItem.imageUrl);
 
-        this.http.get(currentItem.imageUrl, {
+        const options = {
+          method: 'get',
           responseType: 'blob',
           headers: this.config.httpHeaders
-        }).subscribe(
-          (data: Blob) => {
-            this.file.writeFile(localDir, fileName, data, {replace: true}).then((file: FileEntry) => {
-              if (this.isCacheSpaceExceeded) {
+        };
+
+        cordova.plugin.http.sendRequest(currentItem.imageUrl, options, (res) => {
+          const { data } = res;
+          this.file.writeFile(localDir, fileName, data, {replace: true}).then((file: FileEntry) => {
+            if (this.isCacheSpaceExceeded) {
+              this.maintainCacheSize();
+            }
+            this.addFileToIndex(file).then(() => {
+              this.getCachedImagePath(currentItem.imageUrl).then((localUrl) => {
+                currentItem.resolve(localUrl);
+                resolve();
+                done();
                 this.maintainCacheSize();
-              }
-              this.addFileToIndex(file).then(() => {
-                this.getCachedImagePath(currentItem.imageUrl).then((localUrl) => {
-                  currentItem.resolve(localUrl);
-                  resolve();
-                  done();
-                  this.maintainCacheSize();
-                });
               });
-            }).catch((e) => {
-              // Could not write image
-              error(e);
-              reject(e);
             });
-          },
-          (e) => {
-            // Could not get image via httpClient
+          }).catch((e) => {
+            // Could not write image
             error(e);
             reject(e);
           });
+        }, (e) => {
+          // Could not get image via httpClient
+          error(e);
+          reject(e);
+        });
+
+        // this.http.get(currentItem.imageUrl, {
+        //   responseType: 'blob',
+        //   headers: this.config.httpHeaders
+        // }).subscribe(
+        //   (data: Blob) => {
+        //     this.file.writeFile(localDir, fileName, data, {replace: true}).then((file: FileEntry) => {
+        //       if (this.isCacheSpaceExceeded) {
+        //         this.maintainCacheSize();
+        //       }
+        //       this.addFileToIndex(file).then(() => {
+        //         this.getCachedImagePath(currentItem.imageUrl).then((localUrl) => {
+        //           currentItem.resolve(localUrl);
+        //           resolve();
+        //           done();
+        //           this.maintainCacheSize();
+        //         });
+        //       });
+        //     }).catch((e) => {
+        //       // Could not write image
+        //       error(e);
+        //       reject(e);
+        //     });
+        //   },
+        //   (e) => {
+        //     // Could not get image via httpClient
+        //     error(e);
+        //     reject(e);
+        //   });
         }
       ).catch((e) => this.throwError(e));
     } else {

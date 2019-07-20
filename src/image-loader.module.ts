@@ -1,6 +1,7 @@
 import { HttpClientModule }              from '@angular/common/http';
 import { ModuleWithProviders, NgModule } from '@angular/core';
 import { File }                          from '@ionic-native/file';
+import { HTTP }                          from '@ionic-native/http';
 import { IonicModule }                   from 'ionic-angular';
 import { ImgLoaderComponent }            from './components/img-loader';
 import { ImageLoader }                   from './providers/image-loader';
@@ -26,6 +27,7 @@ export class IonicImageLoader {
         ImageLoaderConfig,
         ImageLoader,
         File,
+        HTTP,
       ],
     };
   }
