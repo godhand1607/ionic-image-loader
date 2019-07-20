@@ -331,65 +331,72 @@ export class ImageLoader {
         const localDir = this.getFileCacheDirectory() + this.config.cacheDirectoryName + '/';
         const fileName = this.createFileName(currentItem.imageUrl);
 
-        const options = {
-          method: 'get',
-          responseType: 'blob',
-          headers: this.config.httpHeaders
-        };
+        if (this.platform.is('cordova')) {
+          console.log('#### IMAGE LOADER: NATIVE HTTP CLIENT');
+          const options = {
+            method: 'get',
+            responseType: 'blob',
+            headers: this.config.httpHeaders
+          };
 
-        cordova.plugin.http.sendRequest(currentItem.imageUrl, options, (res) => {
-          const { data } = res;
-          this.file.writeFile(localDir, fileName, data, {replace: true}).then((file: FileEntry) => {
-            if (this.isCacheSpaceExceeded) {
-              this.maintainCacheSize();
-            }
-            this.addFileToIndex(file).then(() => {
-              this.getCachedImagePath(currentItem.imageUrl).then((localUrl) => {
-                currentItem.resolve(localUrl);
-                resolve();
-                done();
+          cordova.plugin.http.sendRequest(currentItem.imageUrl, options, (res) => {
+            const { data } = res;
+            this.file.writeFile(localDir, fileName, data, {replace: true}).then((file: FileEntry) => {
+              if (this.isCacheSpaceExceeded) {
                 this.maintainCacheSize();
+              }
+              this.addFileToIndex(file).then(() => {
+                this.getCachedImagePath(currentItem.imageUrl).then((localUrl) => {
+                  currentItem.resolve(localUrl);
+                  resolve();
+                  done();
+                  this.maintainCacheSize();
+                });
               });
+            }).catch((e) => {
+              // Could not write image
+              error(e);
+              reject(e);
             });
-          }).catch((e) => {
-            // Could not write image
+          }, (e) => {
+            // Could not get image via httpClient
+            console.log('#### IMAGE LOADER: NATIVE HTTP CLIENT > ERROR ', e);
             error(e);
             reject(e);
           });
-        }, (e) => {
-          // Could not get image via httpClient
-          error(e);
-          reject(e);
-        });
+        } else {
+          console.log('#### IMAGE LOADER: ANGULAR HTTP CLIENT');
+          this.http.get(currentItem.imageUrl, {
+            responseType: 'blob',
+            headers: this.config.httpHeaders
+          }).subscribe(
+            (data: Blob) => {
+              this.file.writeFile(localDir, fileName, data, {replace: true}).then((file: FileEntry) => {
+                if (this.isCacheSpaceExceeded) {
+                  this.maintainCacheSize();
+                }
+                this.addFileToIndex(file).then(() => {
+                  this.getCachedImagePath(currentItem.imageUrl).then((localUrl) => {
+                    currentItem.resolve(localUrl);
+                    resolve();
+                    done();
+                    this.maintainCacheSize();
+                  });
+                });
+              }).catch((e) => {
+                // Could not write image
+                error(e);
+                reject(e);
+              });
+            },
+            (e) => {
+              // Could not get image via httpClient
+              console.log('#### IMAGE LOADER: ANGULAR HTTP CLIENT > ERROR ', e);
+              error(e);
+              reject(e);
+            });
+        }
 
-        // this.http.get(currentItem.imageUrl, {
-        //   responseType: 'blob',
-        //   headers: this.config.httpHeaders
-        // }).subscribe(
-        //   (data: Blob) => {
-        //     this.file.writeFile(localDir, fileName, data, {replace: true}).then((file: FileEntry) => {
-        //       if (this.isCacheSpaceExceeded) {
-        //         this.maintainCacheSize();
-        //       }
-        //       this.addFileToIndex(file).then(() => {
-        //         this.getCachedImagePath(currentItem.imageUrl).then((localUrl) => {
-        //           currentItem.resolve(localUrl);
-        //           resolve();
-        //           done();
-        //           this.maintainCacheSize();
-        //         });
-        //       });
-        //     }).catch((e) => {
-        //       // Could not write image
-        //       error(e);
-        //       reject(e);
-        //     });
-        //   },
-        //   (e) => {
-        //     // Could not get image via httpClient
-        //     error(e);
-        //     reject(e);
-        //   });
         }
       ).catch((e) => this.throwError(e));
     } else {
